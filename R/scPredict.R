@@ -32,7 +32,8 @@ scPredict <- function(new,
                       threshold = 0.55, 
                       max.iter.harmony = 20,
                       recompute_alignment = TRUE,
-                      seed = 66){
+                      seed = 66,
+                      name = NA){
   
   # Function validations ----------------------------------------------------
   
@@ -52,7 +53,7 @@ scPredict <- function(new,
 
   # Project query data ------------------------------------------------------
 
-  new <- project_query(new, 
+  new <- scpredmod.project_query(new, 
                 reference = spmodel, 
                 max.iter.harmony = max.iter.harmony, 
                 recompute_alignment = recompute_alignment,
@@ -65,7 +66,7 @@ scPredict <- function(new,
   
   # Classify cells using all trained models 
   cellTypeModelNames <- names(spmodel@features)
-  .predictCellClass <-  function(cellType, spmodel, testEmbeddings){
+  .predictCellClass <- function(cellType, spmodel, testEmbeddings){
     
     # Extract features for a given cell type
     as.character(spmodel@features[[cellType]]$feature) -> features
@@ -85,7 +86,6 @@ scPredict <- function(new,
     prediction[,1, drop = FALSE]
     
   }
-  
   
   cat(crayon::green(cli::symbol$record, " Classifying cells...\n"))
   res <- sapply(cellTypeModelNames, .predictCellClass, spmodel, new_embeddings_aligned)
@@ -111,13 +111,11 @@ scPredict <- function(new,
   max_props <- as.data.frame(t(apply(res, 1, function(x) c(index = which.max(x),  max = x[which.max(x)]))))
   names(max_props) <- c("index", "max")
   
-  
   # Store classification based on maximum probability
   max_props$generic_class <- names(res)[max_props$index]
   res <- cbind(res, max_props)
   
   # Classify cells according to probability threshold
-    
   pred <- ifelse(res$max > threshold, res$generic_class, "unassigned")
   
   names(pred) <- colnames(new)
@@ -128,15 +126,17 @@ scPredict <- function(new,
   res$no_rejection <- res$generic_class
   res$generic_class <- NULL
   
-  names(res) <- .make_names(paste0("scpred_", names(res)))
-  
-  
+  # To permit multiple scPred predictions in a single Seurat object
+  if (is.na(name)){
+    names(res) <- .make_names(paste0("scpred_", names(res)))
+  } else {
+    names(res) <- .make_names(paste0(name, "_scpred_", names(res)))
+  }
+
   # Return results
   new <- AddMetaData(new, res)
   
   cat(crayon::green("DONE!\n"))
   
   new
-  
-  
 }
